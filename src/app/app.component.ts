@@ -1,76 +1,101 @@
-import { Component, OnInit } from '@angular/core';
-import { Car } from './domain/car';
-import { CarService } from './services/carservice';
 
-export class PrimeCar implements Car {
-    constructor(public vin?, public year?, public brand?, public color?) {}
+import { Inject, Injectable,Component, OnInit } from '@angular/core';
+import { User } from './domain/user';
+import { UserService } from './services/userservice';
+import { SESSION_STORAGE, StorageService } from 'ngx-webstorage-service';
+import { Message } from 'primeng/components/common/api';
+
+
+
+export class PirmeUser implements User {
+    constructor(public name?,public password?,public correo?,public twitter?,public admin?){}
 }
 
 @Component({
     selector: 'app-root',
     templateUrl: './app.component.html',
     styleUrls: ['./app.component.css'],
-    providers: [CarService]
+    providers: [UserService]
 })
 export class AppComponent implements OnInit {
 
     displayDialog: boolean;
-
-    car: Car = new PrimeCar();
-
-    selectedCar: Car;
-
-    newCar: boolean;
-
-    cars: Car[];
+    user:any;
+    pass:any;
 
     cols: any[];
+    display: boolean = false;
+    responselogin:any;
+    mensaje: string;
+    displaymsj: any;
+    theUser:any;
+    msgs: Message[] = [];
+    
 
-    constructor(private carService: CarService) { }
+    constructor(private userService: UserService,@Inject(SESSION_STORAGE) private storage: StorageService) { 
+        this.displaymsj = {success:false,token:''};
+        this.theUser = {name:''}
+
+    }
+
+
 
     ngOnInit() {
-        this.carService.getCarsSmall().then(cars => this.cars = cars);
-
-        this.cols = [
-            { field: 'vin', header: 'Vin' },
-            { field: 'year', header: 'Year' },
-            { field: 'brand', header: 'Brand' },
-            { field: 'color', header: 'Color' }
-        ];
-    }
-
-    showDialogToAdd() {
-        this.newCar = true;
-        this.car = new PrimeCar();
-        this.displayDialog = true;
-    }
-
-    save() {
-        const cars = [...this.cars];
-        if (this.newCar) {
-            cars.push(this.car);
-        } else {
-            cars[this.findSelectedCarIndex()] = this.car;
+        console.log(this.storage.get("token"));
+        if(this.storage.get("token")){
+                        
+            var _data = {name:this.storage.get("name"),token:this.storage.get("token")};
+            this.displaymsj.success = false;
+            
+            this.userService.getUser(_data).then(user => {
+                if(user == null || !user.success)
+                {
+                 this.storage.clear();
+                 this.displaymsj = {success:false,token:''};
+                }else{
+                 this.theUser = user;
+                }
+            });
         }
-        this.cars = cars;
-        this.car = null;
-        this.displayDialog = false;
+       
     }
 
-    delete() {
-        const index = this.findSelectedCarIndex();
-        this.cars = this.cars.filter((val, i) => i !== index);
-        this.car = null;
-        this.displayDialog = false;
+    showDialog() {
+        this.display = true;
     }
 
-    onRowSelect(event) {
-        this.newCar = false;
-        this.car = {...event.data};
-        this.displayDialog = true;
+    login() {
+        
+        var _data = {name:this.user,password:this.pass,token:''};
+        this.userService.postLogin(_data)
+        .then(displaymsj => {
+            this.displaymsj = displaymsj
+            this.display = !this.displaymsj.success;
+            this.storage.set("token", this.displaymsj.token);
+            this.storage.set("name", this.user);
+            _data.token = this.displaymsj.token;
+            
+            //Traemos los datos del usuario
+            this.userService.getUser(_data).then(user => {
+                  this.theUser= user;
+            });
+
+        } );
     }
 
-    findSelectedCarIndex(): number {
-        return this.cars.indexOf(this.selectedCar);
+    logout() {
+        this.displaymsj.success = false;
+        this.storage.clear();
     }
+
+    guardando(){
+        console.log("intentano guardar!!");
+        console.log(this.theUser);
+        this.theUser.token = this.storage.get("token");
+        this.userService.postGuarda(this.theUser).then(user => {
+                  console.log("!!Upodate"+ user);
+                  this.msgs.push({severity:'info', summary:'Aviso', detail:'El registro se actualizo'});
+            });
+    }
+
 }
